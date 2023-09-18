@@ -39,6 +39,15 @@ class Displacement:
             return (m * f.numerator, m * f.denominator)
 
 
+class Bearing:
+
+    def __init__(self, x, y):
+        if y == 0:
+            self._ratio = float("inf")
+        else:
+            self._ratio = Fraction(x, y)
+
+
 def solution(dimensions, your_position, trainer_position, distance):
     """
     Correct, but TLE.
