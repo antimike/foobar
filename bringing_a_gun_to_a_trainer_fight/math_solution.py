@@ -4,120 +4,80 @@ After failing with brute-force and Farey-star-based solutions, I decided to fina
 Fortunately, it's not actually too difficult, and the solution cuts the runtime from O(dist**2) to O(dist).
 """
 
+from math import ceil, floor, sqrt, gcd
 from .vector import IntegerVector, BilinearForm
 from itertools import combinations
+from fractions import Fraction
 
 
-class Range:
-    from bisect import bisect_left
+def lcm(a, b):
+    """Compute the LCM of two integers"""
+    return a * b // gcd(a, b)
 
-    def __init__(self, include=[], exclude=[]):
-        self._intervals = [-float("inf"), float("inf")]
-        for interval in include:
-            self.add_interval(*interval)
-        for interval in exclude:
-            self.remove_interval(*interval)
 
-    def _get_endpoint_index(self, num):
-        """Helper function wrapping bisect_left"""
-        return self.bisect_left(self._intervals, num)
+def numLatticePointsInEllipse(basis, anchor, center, axes):
+    Lx, Ly = basis
+    lx, ly = anchor
+    x0, y0 = center
+    a, b = axes
+    total = 0
+    for m in range(ceil(x0 - a), floor(x0 + a) + 1):
+        if (m - lx) % Lx != 0:
+            continue
+        s = sqrt(1 - Fraction(m - x0, a)**2)
+        total += (floor(y0 + b * s) - ly) // Ly - (ceil(y0 - b * s) -
+                                                   ly) // Ly + 1
+    return total
 
-    def add_interval(self, a, b):
-        i, j = self._get_endpoint_index(a), self._get_endpoint_index(b)
-        if i == j:
-            if i % 2 == 0:
-                self._intervals.insert(i, b)
-                self._intervals.insert(i, a)
-        else:
-            if i % 2 == 0:
-                self._intervals[i] = a
-            if j % 2 == 0:
-                # we can assume j > 0 here due to the case handled above (i == j == 0)
-                self._intervals[j - 1] = b
-            self._intervals = self._intervals[:i + 1 - (i % 2)] + \
-                self._intervals[j - 1 + (j % 2):]
 
-    def remove_interval(self, a, b):
-        i, j = self._get_endpoint_index(a), self._get_endpoint_index(b)
-        if i == j:
-            if i % 2 == 1:
-                self._intervals.insert(i, b)
-                self._intervals.insert(i, a)
-        else:
-            if i % 2 == 1:
-                self._intervals[i] = a
-            if j % 2 == 1:
-                self._intervals[j - 1] = b
-            self._intervals = self._intervals[:i + (i % 2)] + \
-                self._intervals[j - (j % 2):]
+def helper(base, L, H, dist):
+    """Compute the number of integer lattice points satisfying abs(base + [[2*L, 0], [0, 2*H]]*[m, n]) <= dist"""
+    print(
+        f"Calculating lattice points in critical ellipse for given parameters:"
+    )
+    print(f"\tbase = {base}\n\tL, H = {L, H}\n\tdist = {dist}")
 
-    def size(self):
-        if len(self._intervals) > 0:
-            if self._intervals[0] == -float(
-                    "inf") or self._intervals[-1] == float("inf"):
-                return float("inf")
-            else:
-                return sum([
-                    x * (-1)**(j + 1) for j, x in enumerate(self._intervals)
-                ]) + len(self._intervals)
-        else:
-            return 0
+    # (delta_x, delta_y) := center of critical ellipse
+    # k0 := min(n in integers such that n*delta[i] in integers for i = 0, 1)
+    delta_x, delta_y = Fraction(base[0], 2 * L), Fraction(base[1], 2 * H)
+    k0 = lcm(delta_x.denominator, delta_y.denominator)
 
-    def clear(self):
-        self._intervals = []
+    # Axes of ellipse
+    a, b = Fraction(dist, 2 * L), Fraction(dist, 2 * H)
 
-    def copy(self):
-        ret = self.__class__()
-        ret._intervals = list(self._intervals)
-        return ret
+    print(
+        f"\tCalculated parameters:\n\t\tdelta = {(delta_x, delta_y)}\n\t\t(a, b) = {(a, b)}\n\t\tk0 = {k0}"
+    )
 
-    def union(self, other):
-        ret = self.copy()
-        for a, b in other.intervals:
-            ret.add_interval(a, b)
-        return ret
+    total = 0
 
-    def difference(self, other):
-        ret = self.copy()
-        for a, b in other.intervals:
-            ret.remove_interval(a, b)
-        return ret
+    # Loop over all possible values of m
+    for m in range(ceil(-delta_x - a), floor(-delta_x + a) + 1):
+        s = sqrt(1 - Fraction(m + delta_x, a)**2)
+        c, d = ceil(-delta_y - b * s), floor(-delta_y + b * s)
+        total += d - c + 1
+        print(
+            f"\tLattice points with m = {m}:\n\t\trange = {(c, d)}\n\t\tnum = {d - c + 1}"
+        )
+        print(
+            f"\t\tBearings: {[(base[0] + 2*L*m, base[1] + 2*H*n) for n in range(c, d + 1)]}"
+        )
 
-    def intersect(self, other):
-        ret = self.copy()
-        ret.clear()
-        for a, b in other.intervals:
-            i, j = self._get_endpoint_index(a), self._get_endpoint_index(b)
-            if i == j:
-                if i % 2 == 1:
-                    ret.add_interval(a, b)
-            else:
-                if i % 2 == 1:
-                    ret.add_interval(a, self._intervals[i])
-                if j % 2 == 1:
-                    ret.add_interval(self._intervals[j - 1], b)
+    return total
 
-    @property
-    def intervals(self):
-        for i in range(0, len(self._intervals) - 1, 2):
-            yield (self._intervals[i], self._intervals[i + 1])
 
-    def __add__(self, other):
-        return self.union(other)
-
-    def __sub__(self, other):
-        return self.difference(other)
-
-    def __contains__(self, x):
-        return self._get_endpoint_index(x) % 2 == 1
+def find_num_target_points(pos, tpos, L, H, dist):
+    total = 0
+    for target in tpos, (tpos[0], -tpos[1]), (-tpos[0], tpos[1]), (-tpos[0],
+                                                                   -tpos[1]):
+        base = (target[0] - pos[0], target[1] - pos[1])
+        total += helper(base, L, H, dist)
+    return total
 
 
 def solution(dims, pos, tpos, dist):
-    me, target = IntegerVector(*pos), IntegerVector(*tpos)
-    lattice = IntegerVector.Lattice(2 * dims[0] * IntegerVector.xhat,
-                                    2 * dims[1] * IntegerVector.yhat)
-    collision_vectors = []
-    for p, q in combinations(
-            [v - u for u in me.reflections() for v in target.reflections()], 2):
-        if p - q in lattice:
-            collision_vectors.append(lattice.coefficients(p - q))
+    L, H = dims
+    me = find_num_target_points(pos, pos, L, H, dist)
+    him = find_num_target_points(pos, tpos, L, H, dist)
+    print("", f"Number of target points:\n\tme --> {me}\n\thim --> {him}")
+    return him - me
