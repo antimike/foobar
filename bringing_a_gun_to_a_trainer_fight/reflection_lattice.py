@@ -1,23 +1,25 @@
-"""
-Key insight: symmetry
-
-"Self-owns" are the same as "backward redundant" lattice points
-"""
-
-from fractions import Fraction
-from math import sqrt, gcd, floor
+from math import sqrt, floor
 from itertools import chain
 
 
+def gcd(a, b):
+    # Python 2.7 math module doesn't implement this :/
+    while b != 0:
+        a, b = b, a % b
+    return abs(a)
+
+
 def get_bearing(p):
+    if p == Point(0, 0):
+        return p
     return p // gcd(p.x, p.y)
 
 
 def solution(dims, pos, tpos, dist):
     L = ReflectionLattice(*dims)
     me, trainer = Point(*pos), Point(*tpos)
-    bearings = {get_bearing(trainer - me)}
-    hits = 1
+    bearings = set()
+    hits = set()
     for image, src in sorted(chain(
         map(lambda q: (q, trainer), L.reflections(trainer, me, dist)),
         map(lambda q: (q, me), L.reflections(me, me, dist))),
@@ -26,8 +28,8 @@ def solution(dims, pos, tpos, dist):
         if b not in bearings:
             bearings.add(b)
             if src != me:
-                hits += 1
-    return hits
+                hits.add(b)
+    return len(hits)
 
 
 class Point:
@@ -83,11 +85,6 @@ class Point:
     def __repr__(self):
         return "<" + ",".join([repr(self.x), repr(self.y)]) + ">"
 
-    @classmethod
-    @property
-    def origin(cls):
-        return cls(0, 0)
-
 
 class ReflectionLattice:
     """
@@ -96,18 +93,13 @@ class ReflectionLattice:
 
     def __init__(self, lx, ly):
         self._dims = Point(lx, ly)
-        self._basis = 2 * Point(Point(lx, 0), Point(0, ly))
-        self._inverse_basis = Point(Point(Fraction(1, 2 * lx), 0),
-                                    Point(0, Fraction(1, 2 * ly)))
-        self._eccentricity = Fraction(lx, ly)
 
     def primary_reflections(self, p):
-        """Generates the four reflections of p through the sides of the lattice's defining rectangle."""
-        # yield Point(p.x, 2 * self._dims.y - p.y)
+        """Generates representative members of the four equivalence classes of images of p under reflections through the sides of the rectangle."""
+        yield p
         yield Point(p.x, -p.y)
         yield Point(-p.x, p.y)
         yield Point(-p.x, -p.y)
-        # yield Point(2 * self._dims.x - p.x, p.y)
 
     def reflections(self, source, observer, maxDist):
         """Generates all image-points of source within a given distance of observer."""
@@ -116,11 +108,12 @@ class ReflectionLattice:
                 yield z
 
     def in_disk(self, center, radius):
+        """Generates all lattice points within a distance radius of center."""
         xmin, xmax = center.x - radius, center.x + radius
         xmin += (-xmin) % (2 * self._dims.x)
         xmax -= xmax % (2 * self._dims.x)
         for x in range(xmin, xmax + 1, 2 * self._dims.x):
-            dy = floor(sqrt(radius**2 - (x - center.x)**2))
+            dy = int(floor(sqrt(radius**2 - (x - center.x)**2)))
             ymin, ymax = center.y - dy, center.y + dy
             ymin += (-ymin) % (2 * self._dims.y)
             ymax -= ymax % (2 * self._dims.y)
@@ -129,8 +122,23 @@ class ReflectionLattice:
 
 
 if __name__ == "__main__":
-    t1 = [300, 275], [150, 150], [185, 100], 500
-    # [1, 0], [1, 2], [1, -2], [3, 2], [3, -2], [-3, 2], [-3, -2]
-    t2 = [3, 2], [1, 1], [2, 1], 4
-    print(solution(*t1))
-    print(solution(*t2))
+    testcases = {
+        ((3, 2), (1, 1), (2, 1), 4): 7,
+        ((300, 275), (150, 150), (185, 100), 500): 9,
+        ((2, 5), (1, 2), (1, 4), 11): 27,
+        ((23, 10), (6, 4), (3, 2), 23): 8,
+        ((1250, 1250), (1000, 1000), (500, 400), 10000): 196,
+        ((10, 10), (4, 4), (3, 3), 5000): 739323,
+        ((3, 2), (1, 1), (2, 1), 7): 19,
+        ((2, 3), (1, 1), (1, 2), 4): 7,
+        ((3, 4), (1, 2), (2, 1), 7): 10,
+        ((4, 4), (2, 2), (3, 1), 6): 7,
+        ((300, 275), (150, 150), (180, 100), 500): 9,
+        ((3, 4), (1, 1), (2, 2), 500): 54243
+    }
+    for t, ans in testcases.items():
+        s = solution(*t)
+        if s != ans:
+            print("FAILED test:")
+            print("\tsolution(%s) == %s, not %s" %
+                  (", ".join([str(x) for x in t]), ans, s))
