@@ -23,6 +23,7 @@ def solution(dims, pos, tpos, dist):
 
 if __name__ == "__main__":
     t1 = [300, 275], [150, 150], [185, 100], 500
+    # [1, 0], [1, 2], [1, -2], [3, 2], [3, -2], [-3, 2], [-3, -2]
     t2 = [3, 2], [1, 1], [2, 1], 4
     print(solution(*t1))
     print(solution(*t2))
